@@ -1,0 +1,27 @@
+{
+  "teachers": [
+    {
+      "email": "srikeshav32@gmail.com",
+      "role": "teacher"
+    },
+    {
+      "email": "shrivastavkeshav8@gmail.com",
+      "role": "teacher"
+    }
+  ],
+  "usermodels": [],
+  "admins": [
+    {
+      "email": "srikeshav32@gmail.com",
+      "role": "admin"
+    },
+    {
+      "email": "shrivastavkeshav8@gmail.com",
+      "role": "admin"
+    },
+    {
+      "email": "admin@gmail.com",
+      "role": "admin"
+    }
+  ]
+}
