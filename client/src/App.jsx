@@ -19,7 +19,7 @@ import TestAttempt from './pages/TestAttempt'
 import TestPerformance from './pages/TestPerformance'
 import Playground from './pages/Playground'
 
-export const serverUrl = "http://localhost:8000"
+export const serverUrl = window.location.hostname === "localhost" ? "http://localhost:8000" : "https://examnotesai-l9zg.onrender.com"
 
 function App() {
   const dispatch = useDispatch()
