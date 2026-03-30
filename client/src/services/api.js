@@ -28,7 +28,9 @@ export const getCurrentUser = async (dispatch, navigate) => {
     return data;
 
   } catch (error) {
-    console.log("Get Current User Error:", error);
+    if (error.response?.status !== 401) {
+      console.log("Get Current User Error:", error);
+    }
     dispatch(setUserData(null)); 
   } finally {
     dispatch(setLoading(false)); 

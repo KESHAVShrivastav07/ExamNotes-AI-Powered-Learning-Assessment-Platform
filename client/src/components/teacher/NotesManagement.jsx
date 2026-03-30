@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import DashboardCard from './DashboardCard';
 import axios from "axios";
 import { serverUrl } from "../../App";
 
 const NotesManagement = ({ notes = [], refresh }) => {
+  const [subjects, setSubjects] = useState([]);
   const [form, setForm] = useState({
     title: '',
     subject: '',
@@ -13,6 +14,20 @@ const NotesManagement = ({ notes = [], refresh }) => {
   });
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    const fetchSubjects = async () => {
+      try {
+        const res = await axios.get(serverUrl + "/api/teacher/subjects", {
+          withCredentials: true,
+        });
+        setSubjects(res.data);
+      } catch (err) {
+        console.error("Fetch subjects error:", err);
+      }
+    };
+    fetchSubjects();
+  }, []);
 
   const handleUpload = async (e) => {
     e.preventDefault();
@@ -75,13 +90,21 @@ const NotesManagement = ({ notes = [], refresh }) => {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Subject</label>
-              <input 
-                type="text" 
+              <select 
                 value={form.subject}
                 onChange={(e) => setForm({...form, subject: e.target.value})}
-                placeholder="OOPS" 
-                className="w-full bg-slate-800/50 border border-white/5 rounded-xl px-4 py-2.5 text-sm focus:outline-none text-white" 
-              />
+                className="w-full bg-slate-800/50 border border-white/5 rounded-xl px-4 py-2.5 text-sm focus:outline-none text-white appearance-none cursor-pointer" 
+              >
+                <option value="">Select Subject</option>
+                {subjects.map((s) => (
+                  <option key={s._id} value={s.name}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+              {subjects.length === 0 && (
+                <p className="text-[10px] text-amber-500 mt-1">No subjects found.</p>
+              )}
             </div>
             <div>
               <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Branch</label>
@@ -152,7 +175,7 @@ const NotesManagement = ({ notes = [], refresh }) => {
                 </div>
                 <div className="flex items-center gap-2 mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
                    <a 
-                     href={note.fileUrl} 
+                     href={`${serverUrl}/${note.fileUrl}`} 
                      target="_blank" 
                      rel="noopener noreferrer"
                      className="flex-1 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 rounded-lg text-emerald-400 text-center text-[10px] font-bold transition-colors"

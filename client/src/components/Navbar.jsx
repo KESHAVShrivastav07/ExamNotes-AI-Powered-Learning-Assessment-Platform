@@ -6,6 +6,7 @@ import axios from 'axios'
 import { serverUrl } from '../App'
 import { setUserData } from '../redux/userSlice'
 import { useNavigate } from 'react-router-dom'
+import ThemeToggle from './ThemeToggle'
 
 function Navbar() {
     const { userData } = useSelector((state) => state.user)
@@ -55,6 +56,8 @@ function Navbar() {
             </div>
 
             <div className='flex items-center gap-6 relative'>
+                
+                <ThemeToggle />
 
                 {/* CREDITS */}
                 <div className='relative'>

@@ -17,18 +17,19 @@ function Home() {
   
 
   useEffect(() => {
-    if (userData?.branch) {
-      fetchSharedNotes()
-    }
+    fetchSharedNotes()
   }, [userData])
 
   const fetchSharedNotes = async () => {
     try {
       setLoadingNotes(true)
-      const res = await axios.get(`${serverUrl}/api/teacher/shared-notes`, {
+      console.log(`[Home] Fetching shared notes for Branch: ${userData.branch}, Sem: ${userData.semester}`);
+      
+      const res = await axios.get(`${serverUrl}/api/teacher/notes`, {
         params: { branch: userData.branch, semester: userData.semester },
         withCredentials: true
       })
+      console.log(`[Home] Successfully fetched ${res.data.length} shared notes.`);
       setSharedNotes(res.data)
     } catch (err) {
       console.error("Fetch Shared Notes Error:", err)
@@ -134,7 +135,7 @@ function Home() {
                 Study Materials
               </h2>
               <p className="mt-2 text-gray-500 dark:text-gray-400">
-                Teacher-uploaded notes for {userData.branch} Sem {userData.semester}.
+                Teacher-uploaded notes for {userData.branch} {userData.semester ? `Sem ${userData.semester}` : ""}.
               </p>
             </div>
           </div>
@@ -151,9 +152,27 @@ function Home() {
                 key={note._id}
                 icon="📘" 
                 title={note.title} 
-                des={note.subject} 
+                des={`${note.subject} • Uploaded by Teacher`}
                 delay={index * 0.1}
-                onClick={() => window.open(serverUrl + "/" + note.fileUrl, "_blank")}
+                onClick={async () => {
+                  try {
+                    const res = await axios.get(
+                      serverUrl + `/api/teacher/notes/view/${note._id}`,
+                      { withCredentials: true, responseType: "blob" }
+                    );
+                    const url = window.URL.createObjectURL(new Blob([res.data]));
+                    const link = document.createElement("a");
+                    link.href = url;
+                    link.setAttribute("download", note.title + ".pdf");
+                    document.body.appendChild(link);
+                    link.click();
+                    link.remove();
+                    window.URL.revokeObjectURL(url);
+                  } catch (err) {
+                    console.error("View note error:", err);
+                    window.open(serverUrl + "/" + note.fileUrl, "_blank");
+                  }
+                }}
                 buttonLabel="View Notes"
               />
             ))

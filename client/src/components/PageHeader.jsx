@@ -1,6 +1,7 @@
 import React from 'react'
 import { motion } from "motion/react"
 import { useNavigate } from 'react-router-dom'
+import ThemeToggle from './ThemeToggle'
 
 function PageHeader({ rightContent }) {
   const navigate = useNavigate()
@@ -31,11 +32,14 @@ function PageHeader({ rightContent }) {
         </p>
       </div>
 
-      {rightContent && (
-        <div className="flex items-center gap-3 flex-wrap">
-          {rightContent}
-        </div>
-      )}
+      <div className="flex items-center gap-3 flex-wrap">
+        <ThemeToggle />
+        {rightContent && (
+          <div className="flex items-center gap-3 flex-wrap">
+            {rightContent}
+          </div>
+        )}
+      </div>
     </motion.header>
   )
 }

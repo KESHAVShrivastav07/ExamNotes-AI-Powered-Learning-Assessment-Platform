@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom"
 import { useDispatch, useSelector } from "react-redux"
 import { setUserData } from "../redux/userSlice"
 import { FiUsers, FiFileText, FiActivity, FiLogOut, FiTrash2, FiEdit2, FiSearch, FiLayers, FiDatabase } from "react-icons/fi"
+import ThemeToggle from "../components/ThemeToggle"
 import Footer from "../components/Footer"
 import { logout } from "../services/api"
 import AdminEditModal from "../components/admin/AdminEditModal"
@@ -118,12 +119,15 @@ function AdminDashboard() {
                 <p className="text-sm font-bold text-gray-900 dark:text-white">Welcome back, Admin 👑</p>
                 <p className="text-[10px] text-gray-500">Fixed Session Active</p>
              </div>
-             <button 
-               onClick={handleLogout}
-               className="p-3 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-xl transition-all shadow-sm"
-             >
-               <FiLogOut size={20} />
-             </button>
+             <div className="flex items-center gap-3">
+                 <ThemeToggle />
+                 <button 
+                   onClick={handleLogout}
+                   className="p-3 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-xl transition-all shadow-sm"
+                 >
+                   <FiLogOut size={20} />
+                 </button>
+             </div>
           </div>
         </div>
       </header>
@@ -326,7 +330,7 @@ function ManagementTable({ data, type, onDelete, onEdit }) {
                    {type === 'note' && (
                      <>
                         <Badge label={item.subject} color="rose" />
-                        <Badge label={`By ${item.user?.name || 'Unknown'}`} color="indigo" />
+                        <Badge label={item.uploaderLabel} color="indigo" />
                      </>
                    )}
                 </div>

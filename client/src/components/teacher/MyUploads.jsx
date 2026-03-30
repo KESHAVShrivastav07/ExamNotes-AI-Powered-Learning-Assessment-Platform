@@ -13,7 +13,7 @@ function MyUploads() {
 
   const fetchUploads = async () => {
     try {
-      const res = await axios.get(serverUrl + "/api/notes", {
+      const res = await axios.get(serverUrl + "/api/teacher/notes", {
         withCredentials: true,
       });
       setUploads(res.data);
@@ -32,7 +32,7 @@ function MyUploads() {
     if (!window.confirm("Delete this upload? This cannot be undone.")) return;
 
     try {
-      await axios.delete(serverUrl + `/api/notes/${id}`, {
+      await axios.delete(serverUrl + `/api/teacher/notes/${id}`, {
         withCredentials: true,
       });
       setUploads((prev) => prev.filter((u) => u._id !== id));
@@ -44,7 +44,7 @@ function MyUploads() {
   const handleView = async (id) => {
     try {
       const res = await axios.get(
-        serverUrl + `/api/teacher/uploads/view/${id}`,
+        serverUrl + `/api/teacher/notes/view/${id}`,
         { withCredentials: true, responseType: "blob" }
       );
 

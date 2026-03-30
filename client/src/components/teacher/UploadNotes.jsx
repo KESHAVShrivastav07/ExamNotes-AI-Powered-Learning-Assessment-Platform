@@ -24,7 +24,7 @@ function UploadNotes() {
   useEffect(() => {
     const fetchSubjects = async () => {
       try {
-        const res = await axios.get(serverUrl + "/api/subjects", {
+        const res = await axios.get(serverUrl + "/api/teacher/subjects", {
           withCredentials: true,
         });
         setSubjects(res.data);
@@ -92,7 +92,7 @@ function UploadNotes() {
       formData.append("semester", semester);
 
       const res = await axios.post(
-        serverUrl + "/api/notes/upload",
+        serverUrl + "/api/teacher/notes/upload",
         formData,
         {
           withCredentials: true,
