@@ -43,23 +43,60 @@ function MyUploads() {
 
   const handleView = async (id) => {
     try {
-      const res = await axios.get(
-        serverUrl + `/api/teacher/notes/view/${id}`,
-        { withCredentials: true, responseType: "blob" }
-      );
+      console.log(`[MyUploads] 📥 Attempting to view note: ${id}`);
 
+      const upload = uploads.find((u) => u._id === id);
+      const viewUrl = `${serverUrl}/api/teacher/notes/view/${id}`;
+      console.log(`[MyUploads] 🔗 Calling API endpoint: ${viewUrl}`, {
+        title: upload?.title,
+        fileUrl: upload?.fileUrl
+      });
+
+      const res = await axios.get(viewUrl, {
+        withCredentials: true,
+        responseType: "blob"
+      });
+
+      console.log(`[MyUploads] ✅ Successfully downloaded note, size: ${res.data.size} bytes`);
+
+      // Create blob and trigger download
       const url = window.URL.createObjectURL(new Blob([res.data]));
       const link = document.createElement("a");
       link.href = url;
-
-      const upload = uploads.find((u) => u._id === id);
-      link.setAttribute("download", upload?.fileName || "file");
+      link.setAttribute("download", upload?.title ? upload.title + ".pdf" : "note.pdf");
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
     } catch (err) {
-      console.error("View/download error:", err);
+      console.error(`[MyUploads] ❌ Error downloading note ${id}:`, {
+        message: err.message,
+        status: err.response?.status,
+        statusText: err.response?.statusText,
+        data: err.response?.data
+      });
+
+      const upload = uploads.find((u) => u._id === id);
+      
+      // Fallback: Try direct file URL if available
+      if (upload?.fileUrl) {
+        // Handle both absolute paths (old data) and relative paths (new data)
+        let fallbackUrl = upload.fileUrl;
+        
+        // If it's an absolute path (contains drive letter or backslashes), extract just the filename
+        if (fallbackUrl.includes("\\") || fallbackUrl.match(/^[A-Z]:/)) {
+          const filename = fallbackUrl.split(/[\\\/]/).pop();
+          fallbackUrl = `uploads/${filename}`;
+          console.log(`[MyUploads] ⚠️ Converted absolute path to relative: ${fallbackUrl}`);
+        }
+        
+        const fullFallbackUrl = `${serverUrl}/${fallbackUrl}`;
+        console.log(`[MyUploads] ⚠️ Fallback: Opening direct file URL: ${fullFallbackUrl}`);
+        window.open(fullFallbackUrl, "_blank");
+      } else {
+        console.error(`[MyUploads] ❌ No fallback available - note has no fileUrl`);
+        alert(`Failed to download note: ${err.response?.data?.message || err.message}`);
+      }
     }
   };
 

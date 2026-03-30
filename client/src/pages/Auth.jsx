@@ -33,7 +33,7 @@ function Auth({ role = "teacher", note = null }) {
       const User = response.user;
       const name = User.displayName;
       const email = User.email;
-
+     console.log(response);
       const result = await axios.post(
         serverUrl + "/api/auth/google",
         { name, email, role: selectedRole },

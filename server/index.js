@@ -12,6 +12,12 @@ import adminRoutes from "./routes/admin.routes.js"
 import teacherRoutes from "./routes/teacher.routes.js"
 import testRouter from "./routes/test.routes.js"
 import { stripeWebhook } from "./controllers/credits.controller.js"
+import fs from "fs"
+import path from "path"
+import { fileURLToPath } from "url"
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 
 dotenv.config()
@@ -34,7 +40,7 @@ app.post(
 );
 
 app.use(cors(
-    {origin:["http://localhost:5173", "http://localhost:5174", "http://localhost:3000", "http://localhost:8000", "https://exam-notes-ai-powered-learning-asse.vercel.app"],
+    {origin:["http://localhost:5173", "http://localhost:5174", "http://localhost:3000", "http://localhost:8000", "https://exam-notes-ai-powered-learning-asse.vercel.app", "https://exam-notes-ai-powered-learning-asse.vercel.app/auth"],
         credentials:true,
         methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
     }
@@ -44,7 +50,7 @@ app.use(cors(
 
 app.use(express.json())
 app.use(cookieParser())
-app.use("/uploads", express.static("uploads"))
+app.use("/uploads", express.static(path.join(__dirname, "uploads")))
 const PORT = process.env.PORT || 5000
 app.get("/",(req,res)=>{
     res.json({message:"ExamNotes AI Backend Running 🚀"})
@@ -62,5 +68,18 @@ app.use("/api/tests", testRouter)
 
 app.listen(PORT,()=>{
     console.log(`✅ Server running on port ${PORT}`)
+    
+    // Ensure uploads directory exists
+    const uploadsDir = path.join(__dirname, 'uploads')
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true })
+      console.log(`✅ Created uploads directory at: ${uploadsDir}`)
+    } else {
+      console.log(`✅ Uploads directory exists at: ${uploadsDir}`)
+      // Log how many files are in the directory
+      const files = fs.readdirSync(uploadsDir)
+      console.log(`   Files present: ${files.length}`)
+    }
+    
     connectDb()
 })

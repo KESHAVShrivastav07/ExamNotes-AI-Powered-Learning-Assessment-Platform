@@ -6,6 +6,10 @@ import Result from "../models/result.model.js";
 import fs from "fs";
 import path from "path";
 import { createRequire } from "module";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const require = createRequire(import.meta.url);
 const pdf = require("pdf-parse");
 import { summarizePDF } from "../services/gemini.services.js";
@@ -15,50 +19,71 @@ const branchRegexEscape = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 /* ── Upload Note with AI Integration ── */
 export const uploadNote = async (req, res) => {
   try {
-    const { title, description, section, subject, branch, semester } = req.body;
+    console.log("\n========== UPLOAD START ==========");
+    console.log("User ID:", req.userId);
+    console.log("User Role:", req.role);
+    console.log("File:", req.file?.filename);
+    console.log("Body:", req.body);
+    console.log("==================================\n");
+
     const file = req.file;
+    const { title } = req.body;
 
     if (!file) {
-      return res.status(400).json({ message: "No file uploaded" });
+      console.error("ERROR: No file");
+      return res.status(400).json({ message: "No file" });
     }
 
-    // 🔥 Step 1: Extract Text from PDF
-    const dataBuffer = fs.readFileSync(file.path);
-    const pdfData = await pdf(dataBuffer);
-    const extractedText = pdfData.text;
-
-    // 🔥 Step 2: Generate AI Summary, KeyPoints, and Questions
-    let aiInsights = { summary: "", keyPoints: [], questions: [] };
-    try {
-      aiInsights = await summarizePDF(extractedText);
-    } catch (aiError) {
-      console.error("AI Insights Error:", aiError.message);
-      // Continue without AI if it fails, but log it
+    if (!title) {
+      console.error("ERROR: No title");
+      return res.status(400).json({ message: "No title" });
     }
 
-    // 🔥 Step 3: Save to TeacherUpload Model
-    const newNote = await TeacherUpload.create({
-      title,
-      description,
-      fileUrl: file.path, 
-      subject,
-      section,
-      branch,
-      semester,
+    if (!req.userId) {
+      console.error("ERROR: No auth - req.userId missing");
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    console.log("Creating TeacherUpload record...");
+
+    const data = {
+      title: String(title).trim(),
+      description: String(req.body.description || ""),
+      fileUrl: `uploads/${file.filename}`,
+      subject: String(req.body.subject || ""),
+      section: String(req.body.section || ""),
+      branch: String(req.body.branch || ""),
+      semester: String(req.body.semester || ""),
       uploadedBy: req.userId,
-      onModel: req.role === "admin" ? "Admin" : "Teacher",
-      summary: aiInsights.summary,
-      keyPoints: aiInsights.keyPoints,
-      questions: aiInsights.questions,
+      onModel: "Teacher",
+      summary: "",
+      keyPoints: [],
+      questions: [],
+    };
+
+    console.log("Save data:", JSON.stringify(data, null, 2));
+
+    const newNote = await TeacherUpload.create(data);
+    
+    console.log("SUCCESS - Note ID:", newNote._id);
+    console.log("========== UPLOAD END ==========\n");
+
+    return res.status(201).json({ 
+      message: "Upload success", 
+      note: newNote
     });
 
-    res.status(201).json({ 
-      message: "Note uploaded and analyzed successfully", 
-      note: newNote 
-    });
   } catch (error) {
-    console.error("Upload Note Error:", error);
-    res.status(500).json({ message: "Failed to upload and analyze note" });
+    console.error("\n========== UPLOAD ERROR ==========");
+    console.error("Message:", error.message);
+    console.error("Stack:", error.stack);
+    console.error("Full error:", error);
+    console.error("==================================\n");
+
+    return res.status(500).json({ 
+      message: error.message,
+      type: error.name
+    });
   }
 };
 
@@ -192,8 +217,12 @@ export const deleteUpload = async (req, res) => {
     }
 
     // Delete the file from disk if path exists
-    if (note.fileUrl && fs.existsSync(note.fileUrl)) {
-      fs.unlinkSync(note.fileUrl);
+    let absolutePath = note.fileUrl;
+    if (absolutePath && !path.isAbsolute(absolutePath)) {
+      absolutePath = path.join(__dirname, "..", absolutePath);
+    }
+    if (absolutePath && fs.existsSync(absolutePath)) {
+      fs.unlinkSync(absolutePath);
     }
 
     await ModelToDelete.deleteOne({ _id: note._id });
@@ -208,25 +237,80 @@ export const deleteUpload = async (req, res) => {
 /* ── View/Download File ───────────── */
 export const viewUploadFile = async (req, res) => {
   try {
-    let note = await Notes.findById(req.params.id);
+    const { id } = req.params;
+    const userId = req.userId;
+    const userRole = req.role;
+    
+    console.log(`[viewUploadFile] 📥 Request to view note ID: ${id}`);
+    console.log(`[viewUploadFile] User: ${userId}, Role: ${userRole}`);
+
+    // Validate MongoDB ID format
+    if (!id || id.length !== 24) {
+      console.error(`[viewUploadFile] ❌ Invalid ID format: ${id}`);
+      return res.status(400).json({ 
+        message: "Invalid note ID format", 
+        id: id,
+        debug: "ID must be 24-character MongoDB ObjectId"
+      });
+    }
+
+    // Check both Notes and TeacherUpload collections
+    let note = await Notes.findById(id);
+    console.log(`[viewUploadFile] Searched Notes collection:`, note ? "✅ Found" : "❌ Not found");
+
     if (!note) {
-      note = await TeacherUpload.findById(req.params.id);
+      note = await TeacherUpload.findById(id);
+      console.log(`[viewUploadFile] Searched TeacherUpload collection:`, note ? "✅ Found" : "❌ Not found");
     }
 
     if (!note) {
-      return res.status(404).json({ message: "Note not found" });
+      console.error(`[viewUploadFile] ❌ Note with ID ${id} not found in any collection`);
+      return res.status(404).json({ 
+        message: "Note not found", 
+        id: id,
+        debug: "Note does not exist in database"
+      });
     }
 
-    const absolutePath = path.resolve(note.fileUrl);
+    console.log(`[viewUploadFile] ✅ Note found:`, {
+      title: note.title,
+      fileUrl: note.fileUrl,
+      subject: note.subject
+    });
 
+    // Handle both absolute and relative paths for backward compatibility
+    let absolutePath = note.fileUrl;
+    if (!path.isAbsolute(absolutePath)) {
+      // If it's a relative path, resolve it from the server root
+      absolutePath = path.join(__dirname, "..", absolutePath);
+      console.log(`[viewUploadFile] Resolved relative path to: ${absolutePath}`);
+    } else {
+      console.log(`[viewUploadFile] Using absolute path: ${absolutePath}`);
+    }
+
+    // Check if file exists on disk
+    console.log(`[viewUploadFile] Checking if file exists at: ${absolutePath}`);
     if (!fs.existsSync(absolutePath)) {
-      return res.status(404).json({ message: "File not found on disk" });
+      console.error(`[viewUploadFile] ❌ File not found on disk: ${absolutePath}`);
+      console.log(`[viewUploadFile] Current working directory: ${process.cwd()}`);
+      
+      return res.status(404).json({ 
+        message: "File not found on disk", 
+        file: absolutePath,
+        debug: "The note exists but the file has been deleted, moved, or never uploaded to this server",
+        cwd: process.cwd()
+      });
     }
 
+    console.log(`[viewUploadFile] ✅ File exists, downloading...`);
     res.download(absolutePath, note.title + ".pdf");
   } catch (error) {
-    console.error("View File Error:", error);
-    res.status(500).json({ message: "Failed to retrieve file" });
+    console.error("[viewUploadFile] ❌ Error:", error);
+    res.status(500).json({ 
+      message: "Failed to retrieve file", 
+      error: error.message,
+      debug: error.stack
+    });
   }
 };
 

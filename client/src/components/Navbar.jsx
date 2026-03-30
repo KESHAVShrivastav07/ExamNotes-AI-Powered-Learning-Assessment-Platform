@@ -56,7 +56,7 @@ function Navbar() {
             </div>
 
             <div className='flex items-center gap-6 relative'>
-                
+
                 <ThemeToggle />
 
                 {/* CREDITS */}

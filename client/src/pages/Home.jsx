@@ -156,10 +156,23 @@ function Home() {
                 delay={index * 0.1}
                 onClick={async () => {
                   try {
-                    const res = await axios.get(
-                      serverUrl + `/api/teacher/notes/view/${note._id}`,
-                      { withCredentials: true, responseType: "blob" }
-                    );
+                    console.log(`[Home] 📥 Attempting to view note: ${note._id}`, {
+                      title: note.title,
+                      subject: note.subject,
+                      fileUrl: note.fileUrl
+                    });
+
+                    const viewUrl = `${serverUrl}/api/teacher/notes/view/${note._id}`;
+                    console.log(`[Home] 🔗 Calling API endpoint: ${viewUrl}`);
+
+                    const res = await axios.get(viewUrl, {
+                      withCredentials: true,
+                      responseType: "blob"
+                    });
+
+                    console.log(`[Home] ✅ Successfully downloaded note, size: ${res.data.size} bytes`);
+
+                    // Create blob and trigger download
                     const url = window.URL.createObjectURL(new Blob([res.data]));
                     const link = document.createElement("a");
                     link.href = url;
@@ -169,8 +182,33 @@ function Home() {
                     link.remove();
                     window.URL.revokeObjectURL(url);
                   } catch (err) {
-                    console.error("View note error:", err);
-                    window.open(serverUrl + "/" + note.fileUrl, "_blank");
+                    console.error(`[Home] ❌ Error downloading note ${note._id}:`, {
+                      message: err.message,
+                      status: err.response?.status,
+                      statusText: err.response?.statusText,
+                      data: err.response?.data,
+                      fileUrl: note.fileUrl
+                    });
+
+                    // Fallback: Try direct file URL if available
+                    if (note.fileUrl) {
+                      // Handle both absolute paths (old data) and relative paths (new data)
+                      let fallbackUrl = note.fileUrl;
+                      
+                      // If it's an absolute path (contains drive letter or backslashes), extract just the filename
+                      if (fallbackUrl.includes("\\") || fallbackUrl.match(/^[A-Z]:/)) {
+                        const filename = fallbackUrl.split(/[\\\/]/).pop();
+                        fallbackUrl = `uploads/${filename}`;
+                        console.log(`[Home] ⚠️ Converted absolute path to relative: ${fallbackUrl}`);
+                      }
+                      
+                      const fullFallbackUrl = `${serverUrl}/${fallbackUrl}`;
+                      console.log(`[Home] ⚠️ Fallback: Opening direct file URL: ${fullFallbackUrl}`);
+                      window.open(fullFallbackUrl, "_blank");
+                    } else {
+                      console.error(`[Home] ❌ No fallback available - note has no fileUrl`);
+                      alert(`Failed to download note: ${err.response?.data?.message || err.message}`);
+                    }
                   }
                 }}
                 buttonLabel="View Notes"

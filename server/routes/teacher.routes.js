@@ -1,6 +1,8 @@
 import express from "express";
 import multer from "multer";
 import path from "path";
+import fs from "fs";
+import { fileURLToPath } from "url";
 import isAuth from "../middleware/isAuth.js";
 import { isTeacher } from "../middleware/roleBase.js";
 import {
@@ -21,9 +23,17 @@ import {
 const router = express.Router();
 
 /* ── Multer config ──────────────────── */
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const uploadDir = path.join(__dirname, "../uploads");
+
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, "uploads/");
+    cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
@@ -39,10 +49,11 @@ const upload = multer({
 // ── Notes APIs ───────────────────────
 // POST /api/notes/upload -> maps to /api/teacher/notes/upload (via index.js)
 router.post("/notes/upload", isAuth, isTeacher, upload.single("file"), uploadNote);
-router.get("/notes", isAuth, getMyUploads);
-router.get("/shared-notes", isAuth, getSharedNotes);
+// ⚠️ IMPORTANT: Specific routes MUST come before generic :id routes to avoid conflicts
+router.get("/notes/view/:id", isAuth, viewUploadFile);  // Specific: view note by ID
+router.get("/shared-notes", isAuth, getSharedNotes);    // Specific: get shared notes
+router.get("/notes", isAuth, getMyUploads);             // General: get my uploads/shared
 router.delete("/notes/:id", isAuth, isTeacher, deleteUpload);
-router.get("/notes/view/:id", isAuth, viewUploadFile);
 
 // ── Subject APIs ─────────────────────
 // POST /api/notes/subjects -> maps to /api/teacher/subjects (via index.js)
