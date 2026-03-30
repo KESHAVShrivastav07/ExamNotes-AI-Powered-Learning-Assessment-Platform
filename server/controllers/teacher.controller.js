@@ -1,4 +1,5 @@
 import Notes from "../models/notes.model.js";
+import TeacherUpload from "../models/teacherUpload.model.js";
 import Subject from "../models/subject.model.js";
 import Test from "../models/test.model.js";
 import Result from "../models/result.model.js";
@@ -8,6 +9,8 @@ import { createRequire } from "module";
 const require = createRequire(import.meta.url);
 const pdf = require("pdf-parse");
 import { summarizePDF } from "../services/gemini.services.js";
+
+const branchRegexEscape = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /* ── Upload Note with AI Integration ── */
 export const uploadNote = async (req, res) => {
@@ -33,8 +36,8 @@ export const uploadNote = async (req, res) => {
       // Continue without AI if it fails, but log it
     }
 
-    // 🔥 Step 3: Save to Notes Model
-    const newNote = await Notes.create({
+    // 🔥 Step 3: Save to TeacherUpload Model
+    const newNote = await TeacherUpload.create({
       title,
       description,
       fileUrl: file.path, 
@@ -64,27 +67,103 @@ export const getSharedNotes = async (req, res) => {
   try {
     const { branch, semester } = req.query;
     
-    let query = {};
-    if (branch) query.branch = branch;
-    if (semester) query.semester = semester;
+    // Safety check with logging
+    const branchStr = branch ? String(branch).trim() : null;
+    const semStr = semester ? String(semester).trim() : null;
 
-    const notes = await Notes.find(query)
-      .sort({ createdAt: -1 });
+    console.log(`[getSharedNotes] User Query: Branch: ${branchStr}, Sem: ${semStr}`);
 
-    res.json(notes);
+    let queryNodes = { onModel: { $in: ["Teacher", "Admin"] } };
+    let queryTeacherUpload = {};
+
+    if (branchStr) {
+      const branchRegex = { $regex: new RegExp(`\\b${branchRegexEscape(branchStr)}\\b`, "i") };
+      queryNodes.branch = branchRegex;
+      queryTeacherUpload.branch = branchRegex;
+    }
+
+    if (semStr) {
+      queryNodes.semester = semStr;
+      queryTeacherUpload.semester = semStr;
+    }
+
+    const [notesUnifiedRaw, notesTeacherUploadRaw] = await Promise.all([
+      Notes.find(queryNodes).populate("uploadedBy", "role").lean(),
+      TeacherUpload.find(queryTeacherUpload).populate("uploadedBy", "role").lean()
+    ]);
+
+    // Same strict role logic as Management Table and getMyUploads
+    const allNotesRaw = [...notesUnifiedRaw, ...notesTeacherUploadRaw].filter(note => {
+      const uploaderRole = note.uploadedBy?.role;
+      const isTeacherOrAdmin = (note.onModel === "Teacher" || note.onModel === "Admin" || uploaderRole === "teacher" || uploaderRole === "admin");
+      return isTeacherOrAdmin && note.onModel !== "UserModel";
+    });
+
+    allNotesRaw.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    console.log(`[getSharedNotes] Found ${allNotesRaw.length} verified shared notes.`);
+    res.json(allNotesRaw);
   } catch (error) {
     console.error("Get Shared Notes Error:", error);
     res.status(500).json({ message: "Failed to fetch shared notes" });
   }
 };
 
-/* ── Get My Uploads ───────────────── */
+/* ── Get My Uploads / Shared Notes ───────────────── */
 export const getMyUploads = async (req, res) => {
   try {
-    const notes = await Notes.find({ uploadedBy: req.userId })
-      .sort({ createdAt: -1 });
+    let queryNotesUnified = {};
+    let queryTeacherUpload = {};
 
-    res.json(notes);
+    if (req.role === "teacher") {
+      queryNotesUnified = { uploadedBy: req.userId };
+      queryTeacherUpload = { uploadedBy: req.userId };
+    } else {
+      const { branch, semester, subject } = req.query;
+      
+      const branchStr = branch ? String(branch).trim() : null;
+      const semStr = semester ? String(semester).trim() : null;
+
+      console.log(`[getMyUploads] Student Query: Branch: ${branchStr}, Sem: ${semStr}, Subject: ${subject}`);
+
+      queryNotesUnified = { onModel: { $in: ["Teacher", "Admin"] }, user: { $exists: false }, title: { $not: /AWS/i } };
+      queryTeacherUpload = {};
+
+      if (branchStr) {
+        const branchMatch = { $regex: new RegExp(`\\b${branchRegexEscape(branchStr)}\\b`, "i") };
+        queryNotesUnified.branch = branchMatch;
+        queryTeacherUpload.branch = branchMatch;
+      }
+
+      if (semStr) {
+        queryNotesUnified.semester = semStr;
+        queryTeacherUpload.semester = semStr;
+      }
+
+      if (subject) {
+        const subRegex = { $regex: new RegExp(`^${String(subject).trim()}$`, "i") };
+        queryNotesUnified.subject = subRegex;
+        queryTeacherUpload.subject = subRegex;
+      }
+    }
+
+    const [notesUnifiedRaw, notesTeacherUploadRaw] = await Promise.all([
+      Notes.find(queryNotesUnified).populate("uploadedBy", "role").lean(),
+      TeacherUpload.find(queryTeacherUpload).populate("uploadedBy", "role").lean()
+    ]);
+
+    // Role-based filtering to EXCLUSIVELY match Admin Dashboard's "Uploaded by Teacher" labels
+    const allNotesRaw = [...notesUnifiedRaw, ...notesTeacherUploadRaw].filter(note => {
+      const uploaderRole = note.uploadedBy?.role;
+      const isTeacherOrAdmin = (note.onModel === "Teacher" || note.onModel === "Admin" || uploaderRole === "teacher" || uploaderRole === "admin");
+      
+      // Specifically filter out student content even if it's in a shared collection
+      return isTeacherOrAdmin && note.onModel !== "UserModel";
+    });
+
+    allNotesRaw.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    res.json(allNotesRaw);
   } catch (error) {
     console.error("Get Notes Error:", error);
     res.status(500).json({ message: "Failed to fetch notes" });
@@ -94,10 +173,19 @@ export const getMyUploads = async (req, res) => {
 /* ── Delete Note ────────────────── */
 export const deleteUpload = async (req, res) => {
   try {
-    const note = await Notes.findOne({
+    let note = await Notes.findOne({
       _id: req.params.id,
       uploadedBy: req.userId
     });
+    let ModelToDelete = Notes;
+
+    if (!note) {
+      note = await TeacherUpload.findOne({
+        _id: req.params.id,
+        uploadedBy: req.userId
+      });
+      ModelToDelete = TeacherUpload;
+    }
 
     if (!note) {
       return res.status(404).json({ message: "Note not found" });
@@ -108,7 +196,7 @@ export const deleteUpload = async (req, res) => {
       fs.unlinkSync(note.fileUrl);
     }
 
-    await Notes.deleteOne({ _id: note._id });
+    await ModelToDelete.deleteOne({ _id: note._id });
 
     res.json({ message: "Note deleted successfully" });
   } catch (error) {
@@ -120,7 +208,10 @@ export const deleteUpload = async (req, res) => {
 /* ── View/Download File ───────────── */
 export const viewUploadFile = async (req, res) => {
   try {
-    const note = await Notes.findById(req.params.id);
+    let note = await Notes.findById(req.params.id);
+    if (!note) {
+      note = await TeacherUpload.findById(req.params.id);
+    }
 
     if (!note) {
       return res.status(404).json({ message: "Note not found" });
@@ -206,9 +297,12 @@ export const deleteSubject = async (req, res) => {
 /* ── Dashboard Stats ──────────────── */
 export const getDashboardStats = async (req, res) => {
   try {
-    const totalUploads = await Notes.countDocuments({
-      uploadedBy: req.userId
-    });
+    const [notesCount, teacherUploadsCount] = await Promise.all([
+      Notes.countDocuments({ uploadedBy: req.userId }),
+      TeacherUpload.countDocuments({ uploadedBy: req.userId })
+    ]);
+    const totalUploads = notesCount + teacherUploadsCount;
+
     const totalSubjects = await Subject.countDocuments({
       createdBy: req.userId
     });

@@ -39,10 +39,10 @@ const upload = multer({
 // ── Notes APIs ───────────────────────
 // POST /api/notes/upload -> maps to /api/teacher/notes/upload (via index.js)
 router.post("/notes/upload", isAuth, isTeacher, upload.single("file"), uploadNote);
-router.get("/notes", isAuth, isTeacher, getMyUploads);
+router.get("/notes", isAuth, getMyUploads);
 router.get("/shared-notes", isAuth, getSharedNotes);
 router.delete("/notes/:id", isAuth, isTeacher, deleteUpload);
-router.get("/notes/view/:id", isAuth, isTeacher, viewUploadFile);
+router.get("/notes/view/:id", isAuth, viewUploadFile);
 
 // ── Subject APIs ─────────────────────
 // POST /api/notes/subjects -> maps to /api/teacher/subjects (via index.js)

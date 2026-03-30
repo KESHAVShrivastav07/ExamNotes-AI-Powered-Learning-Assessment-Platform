@@ -1,12 +1,14 @@
 import UserModel from "../models/user.model.js";
 import Teacher from "../models/teacher.model.js";
 import Notes from "../models/notes.model.js";
+import TeacherUpload from "../models/teacherUpload.model.js";
+import StudentNote from "../models/studentNote.model.js";
 import Test from "../models/test.model.js";
 import Result from "../models/result.model.js";
 
 const requireAdmin = (req, res) => {
   if (req.role !== "admin") {
-    return res.status(403).json({ message: "Admin access required" });
+    return res.status(403).json({ message: "Access denied. Admins only." });
   }
   return null;
 };
@@ -17,18 +19,20 @@ export const getAdminStats = async (req, res) => {
   if (forbidden) return forbidden;
 
   try {
-    const [studentsCount, teachersCount, testsCount, notesCount] = await Promise.all([
+    const [studentsCount, teachersCount, testsCount, notesCount, tUploadCount, sUploadCount] = await Promise.all([
       UserModel.countDocuments({ role: "user" }),
       Teacher.countDocuments(),
       Test.countDocuments(),
-      Notes.countDocuments()
+      Notes.countDocuments(),
+      TeacherUpload.countDocuments(),
+      StudentNote.countDocuments()
     ]);
 
     return res.status(200).json({
       students: studentsCount,
       teachers: teachersCount,
       tests: testsCount,
-      notes: notesCount
+      notes: notesCount + tUploadCount + sUploadCount
     });
   } catch (error) {
     console.error("getAdminStats error", error);
@@ -42,7 +46,6 @@ export const getAllUsers = async (req, res) => {
   if (forbidden) return forbidden;
 
   try {
-    // Get users with branch, sem, credits and a list of their results to calc avg score
     const users = await UserModel.find({ role: "user" })
       .select("name email branch semester credits createdAt")
       .lean();
@@ -100,16 +103,17 @@ export const getAllTeachers = async (req, res) => {
     const teachers = await Teacher.find().select("name email role createdAt").lean();
     
     const teachersWithStats = await Promise.all(teachers.map(async (teacher) => {
-      const [testsCount, notesCount] = await Promise.all([
+      const [testsCount, notesCount, tUploadCount] = await Promise.all([
         Test.countDocuments({ createdBy: teacher._id }),
-        Notes.countDocuments({ user: teacher._id })
+        Notes.countDocuments({ uploadedBy: teacher._id }),
+        TeacherUpload.countDocuments({ uploadedBy: teacher._id })
       ]);
 
       return {
         ...teacher,
         testsCreated: testsCount,
-        notesUploaded: notesCount,
-        department: "Engineering" // Mock or extend model if available
+        notesUploaded: notesCount + tUploadCount,
+        department: "Engineering"
       };
     }));
 
@@ -166,13 +170,44 @@ export const getAllNotes = async (req, res) => {
   if (forbidden) return forbidden;
 
   try {
-    // Populate user to see who uploaded it (could be Teacher or User)
-    const notes = await Notes.find()
-      .populate("user", "name role")
-      .sort({ createdAt: -1 })
-      .lean();
-    return res.status(200).json(notes);
+    // 1. Fetch from ALL THREE collections
+    const [notesUnified, notesTeacherUpload, notesStudentUpload] = await Promise.all([
+      Notes.find().populate("uploadedBy", "name role").populate("user", "name role").lean(),
+      TeacherUpload.find().populate("uploadedBy", "name role").lean(),
+      StudentNote.find().populate("user", "name role").lean()
+    ]);
+
+    // 2. Converge them into one unified list
+    const allNotesRaw = [...notesUnified, ...notesTeacherUpload, ...notesStudentUpload];
+    
+    // Sort by createdAt descending
+    allNotesRaw.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    const processedNotes = allNotesRaw.map(note => {
+      let label = "Created by Student";
+      const uploader = note.uploadedBy || note.user;
+      const role = uploader?.role;
+
+      // Handle uploaderLabel based on collection or data
+      if (note.onModel === "Teacher" || role === "teacher") {
+        label = "Uploaded by Teacher";
+      } else if (note.onModel === "Admin" || role === "admin") {
+        label = "Uploaded by Admin";
+      } else {
+        label = "Created by Student";
+      }
+      
+      return {
+        ...note,
+        title: note.title || note.topic || "Untitled Note",
+        uploaderLabel: label,
+        uploaderName: uploader?.name || "Unknown"
+      };
+    });
+
+    return res.status(200).json(processedNotes);
   } catch (error) {
+    console.error("Fetch notes error:", error);
     return res.status(500).json({ message: "Fetch notes failed" });
   }
 };
@@ -182,7 +217,14 @@ export const deleteNote = async (req, res) => {
   if (forbidden) return forbidden;
 
   try {
-    await Notes.findByIdAndDelete(req.params.id);
+    const id = req.params.id;
+    // Attempt deletion in all possible collections
+    await Promise.allSettled([
+      Notes.findByIdAndDelete(id),
+      TeacherUpload.findByIdAndDelete(id),
+      StudentNote.findByIdAndDelete(id)
+    ]);
+
     return res.status(200).json({ message: "Note deleted successfully" });
   } catch (error) {
     return res.status(500).json({ message: "Delete failed" });
