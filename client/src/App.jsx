@@ -21,7 +21,7 @@ import Playground from './pages/Playground'
 
 export const serverUrl = "http://localhost:8000"
 
-function App () {
+function App() {
   const dispatch = useDispatch()
   const { userData, isLoading } = useSelector((state) => state.user)
 
@@ -47,9 +47,9 @@ function App () {
   return (
     <Routes>
       {/* Public Routes with Redirects */}
-      <Route 
-        path='/auth' 
-        element={userData ? <Navigate to="/" replace /> : <UserLogin />} 
+      <Route
+        path='/auth'
+        element={userData ? <Navigate to="/" replace /> : <UserLogin />}
       />
       <Route
         path='/admin/login'
@@ -61,13 +61,13 @@ function App () {
       />
 
       {/* Protected Routes */}
-      <Route 
-        path='/' 
+      <Route
+        path='/'
         element={
           <ProtectedRoute>
             <Home />
           </ProtectedRoute>
-        } 
+        }
       />
 
       <Route
@@ -88,81 +88,81 @@ function App () {
         }
       />
 
-      <Route 
-        path='/history' 
+      <Route
+        path='/history'
         element={
           <ProtectedRoute>
             <History />
           </ProtectedRoute>
-        } 
+        }
       />
-      
-      <Route 
-        path='/notes' 
+
+      <Route
+        path='/notes'
         element={
           <ProtectedRoute>
             <Notes />
           </ProtectedRoute>
-        } 
+        }
       />
-      <Route 
-        path='/notes/:section' 
+      <Route
+        path='/notes/:section'
         element={
           <ProtectedRoute>
             <Notes />
           </ProtectedRoute>
-        } 
+        }
       />
-      
-      <Route 
-        path='/pricing' 
+
+      <Route
+        path='/pricing'
         element={
           <ProtectedRoute>
             <Pricing />
           </ProtectedRoute>
-        } 
+        }
       />
 
-      <Route 
-        path='/tests' 
+      <Route
+        path='/tests'
         element={
           <ProtectedRoute>
             <TestList />
           </ProtectedRoute>
-        } 
+        }
       />
 
-      <Route 
-        path='/test/:id' 
+      <Route
+        path='/test/:id'
         element={
           <ProtectedRoute>
             <TestAttempt />
           </ProtectedRoute>
-        } 
+        }
       />
 
-      <Route 
-        path='/performance' 
+      <Route
+        path='/performance'
         element={
           <ProtectedRoute>
             <TestPerformance />
           </ProtectedRoute>
-        } 
+        }
       />
 
-      <Route 
-        path='/playground' 
+      <Route
+        path='/playground'
         element={
           <ProtectedRoute>
             <Playground />
           </ProtectedRoute>
-        } 
+        }
       />
 
       {/* Global Results/Status (always accessible or protected as needed) */}
       <Route path='/payment-success' element={<PaymentSuccess />} />
       <Route path='/payment-failed' element={<PaymentFailed />} />
-      
+
       {/* Catch all */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
