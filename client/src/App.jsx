@@ -19,7 +19,7 @@ import TestAttempt from './pages/TestAttempt'
 import TestPerformance from './pages/TestPerformance'
 import Playground from './pages/Playground'
 
-export const serverUrl = "https://examnotes-backend.onrender.com"
+export const serverUrl = "https://examnotes-ai-server.onrender.com"
 
 function App() {
   const dispatch = useDispatch()
