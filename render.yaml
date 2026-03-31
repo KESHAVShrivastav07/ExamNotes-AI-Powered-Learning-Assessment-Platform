@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: examnotes-backend
+    env: node
+    region: oregon
+    buildCommand: npm install
+    startCommand: node index.js
+    dir: server
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        sync: false
+    volumes:
+      - name: uploads
+        mountPath: /opt/render/project/server/uploads
+        ephemeral: false

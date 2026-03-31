@@ -1,0 +1,27 @@
+{
+  "name": "server",
+  "version": "1.0.0",
+  "description": "",
+  "license": "ISC",
+  "author": "",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "dev": "nodemon index.js",
+    "seed:admin": "node seeder/adminSeeder.js"
+  },
+  "dependencies": {
+    "axios": "^1.13.6",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.1.5",
+    "multer": "^2.1.1",
+    "nodemon": "^3.1.11",
+    "pdf-parse": "^2.4.5",
+    "pdfkit": "^0.17.2",
+    "stripe": "^20.3.1"
+  }
+}
